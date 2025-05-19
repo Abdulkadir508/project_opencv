@@ -3,9 +3,10 @@ import numpy as np
 import time
 
 cap = cv.VideoCapture(0)
-prev_pos = None
+BLUE_MIN = np.array([102, 109, 36], np.uint8)
+BLUE_MAX = np.array([141, 255, 164], np.uint8)
 smoothed_pos = None
-alpha = 0.9
+alpha = 0.3  
 dist = lambda x1, y1, x2, y2: ((x1 - x2) ** 2 + (y1 - y2) ** 2) ** 0.5
 
 while True:
@@ -13,14 +14,17 @@ while True:
     if not ret:
         break
 
-    grayFrame = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-    blurFrame = cv.GaussianBlur(grayFrame, (17, 17), 0)
+    hsv = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
+    mask = cv.inRange(hsv, BLUE_MIN, BLUE_MAX)
+    result = cv.bitwise_and(frame, frame, mask=mask)
+    grayResult = cv.cvtColor(result, cv.COLOR_BGR2GRAY)
+    blurFrame = cv.GaussianBlur(grayResult, (17, 17), 0)
 
     circles = cv.HoughCircles(blurFrame, cv.HOUGH_GRADIENT, 1.2, 100,
                                param1=100, param2=30, minRadius=5, maxRadius=30)
     if circles is not None:
         circles = np.uint16(np.around(circles))
-        chosen = circles[0, 0]  
+        chosen = circles[0, 0]
 
         
         if smoothed_pos is None:
@@ -33,10 +37,13 @@ while True:
         cv.circle(frame, (int(smoothed_pos[0]), int(smoothed_pos[1])), chosen[2], (255, 0, 255), 3)
 
         
-        
 
-    cv.imshow('Circles', frame)
-    if cv.waitKey(1) == ord('q'):
+    cv.imshow("frame", frame)
+    cv.imshow("hsv", hsv)
+    cv.imshow("mask", mask)
+    cv.imshow("result", result)
+
+    if cv.waitKey(1) == 27 or cv.waitKey(1) == ord('q'):
         break
 
 cap.release()
