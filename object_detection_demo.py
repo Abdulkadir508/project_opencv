@@ -18,6 +18,10 @@ alpha = 0.6  # smoothing
 
 cap = cv.VideoCapture("ping_pong_ball.mov")
 
+print(cv.CAP_PROP_FPS, cap.get(cv.CAP_PROP_FPS))
+if not cap.isOpened():
+    print("Error: Could not open video.")
+    sys.exit()
 
 class VideoThread(QThread):
     change_pixmap_signal = pyqtSignal(np.ndarray)
@@ -27,47 +31,46 @@ class VideoThread(QThread):
         super().__init__()
         self.running = False
 
-def run(self):
-    cap = cv.VideoCapture("ping_pong_ball.mov") 
+    def run(self):
+        cap = cv.VideoCapture("ping_pong_ball.mov")
+        smoothed_pos = None
 
-    smoothed_pos = None
+        while self.running and cap.isOpened():
+            ret, frame = cap.read()
+            frame = cv.rotate(frame, cv.ROTATE_90_CLOCKWISE)
+            if not ret:
+                break
 
-    while self.running and cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
+            hsv = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
+            mask = cv.inRange(hsv, ORANGE_MIN, ORANGE_MAX)
+            result = cv.bitwise_and(frame, frame, mask=mask)
+            gray = cv.cvtColor(result, cv.COLOR_BGR2GRAY)
+            blur = cv.GaussianBlur(gray, (9, 9), 0)
 
-        hsv = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
-        mask = cv.inRange(hsv, ORANGE_MIN, ORANGE_MAX)
-        result = cv.bitwise_and(frame, frame, mask=mask)
-        gray = cv.cvtColor(result, cv.COLOR_BGR2GRAY)
-        blur = cv.GaussianBlur(gray, (17, 17), 0)
+            circles = cv.HoughCircles(blur, cv.HOUGH_GRADIENT, 1.2, 100,
+                                      param1=100, param2=30, minRadius=1, maxRadius=30)
 
-        circles = cv.HoughCircles(blur, cv.HOUGH_GRADIENT, 1.2, 100,
-                                  param1=100, param2=30, minRadius=1, maxRadius=30)
+            if circles is not None:
+                circles = np.uint16(np.around(circles))
+                avg_circle = np.mean(circles[0, :, :2], axis=0)
 
-        if circles is not None:
-            circles = np.uint16(np.around(circles))
-            avg_circle = np.mean(circles[0, :, :2], axis=0)
+                if smoothed_pos is None:
+                    smoothed_pos = avg_circle
+                else:
+                    smoothed_pos = alpha * avg_circle + (1 - alpha) * smoothed_pos
 
-            if smoothed_pos is None:
-                smoothed_pos = avg_circle
-            else:
-                smoothed_pos = alpha * avg_circle + (1 - alpha) * smoothed_pos
+                x, y = int(smoothed_pos[0]), int(smoothed_pos[1])
+                radius = int(np.mean(circles[0, :, 2]))
 
-            x, y = int(smoothed_pos[0]), int(smoothed_pos[1])
-            radius = int(np.mean(circles[0, :, 2]))
+                cv.circle(frame, (x, y), 1, (0, 100, 100), 3)
+                cv.circle(frame, (x, y), radius, (255, 0, 255), 3)
 
-            cv.circle(frame, (x, y), 1, (0, 100, 100), 3)
-            cv.circle(frame, (x, y), radius, (255, 0, 255), 3)
+                self.position_signal.emit(x)
 
-            self.position_signal.emit(x)
+            self.change_pixmap_signal.emit(frame)
+            cv.waitKey(30)
 
-        self.change_pixmap_signal.emit(frame)
-        cv.waitKey(30)
-
-    cap.release()
-
+        cap.release()
 
     def start_tracing(self):
         self.running = True
