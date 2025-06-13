@@ -150,6 +150,15 @@ class TableModel(QtCore.QAbstractTableModel):
     def columnCount(self, index):
         return len(self._data[0]) if self._data else 0
 
+class WidgetPlot(QWidget):
+    def __init__(self, *args, **kwargs):
+        QWidget.__init__(self, *args, **kwargs)
+        self.setLayout(QVBoxLayout())
+        self.canvas = PlotCanvas(self, width=10, height=8)
+        self.toolbar = NavigationToolbar(self.canvas, self)
+        self.layout().addWidget(self.toolbar)
+        self.layout().addWidget(self.canvas)
+
 
 # Canvas voor live plotten van X en Y posities over tijd
 class PlotCanvas(FigureCanvas):
@@ -312,7 +321,7 @@ class VideoAnalyzer(QWidget):
         main_layout.addSpacing(20)
 
         # Voeg plotcanvas toe voor live grafiek
-        self.canvas = PlotCanvas(self, width=5, height=6)
+        self.canvas = WidgetPlot(self)
         main_layout.addWidget(self.canvas)
 
         self.setLayout(main_layout)
