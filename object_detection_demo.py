@@ -6,11 +6,16 @@ from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QFileDialog, QMessageBox, QComboBox, QSpinBox
 )
+from PyQt5.QtCore import Qt
 from PyQt5.QtCore import QThread, pyqtSignal, Qt
 from PyQt5.QtGui import QImage, QPixmap
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+import pandas as pd
+from PyQt5 import QtCore, QtWidgets
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 
+# Zorg dat OpenCV en numpy geïmporteerd zijn
 # Definieer HSV-waarden voor oranje kleur (voor kleurdetectie)
 ORANGE_MIN = np.array([0, 92, 160], np.uint8)
 ORANGE_MAX = np.array([20, 202, 255], np.uint8)
@@ -133,6 +138,18 @@ class VideoThread(QThread):
         if x is not None and y is not None:
             self.position_signal.emit(x, y)
 
+class TableModel(QtCore.QAbstractTableModel):
+    def __init__(self, data):
+        super().__init__()
+        self._data = data
+    def data(self, index, role):
+         if role == Qt.DisplayRole:
+            return self._data[index.row()][index.column()]
+    def rowCount(self, index):
+        return len(self._data)
+    def columnCount(self, index):
+        return len(self._data[0]) if self._data else 0
+
 
 # Canvas voor live plotten van X en Y posities over tijd
 class PlotCanvas(FigureCanvas):
@@ -181,13 +198,14 @@ class PlotCanvas(FigureCanvas):
         self.skip_rate = rate
 
     def export_to_csv(self, filename):
+        filename = "positiegegevens.csv" if filename is None else filename
         """Exporteer alle positiegegevens naar CSV bestand."""
         with open(filename, mode='w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(['Frame', 'X', 'Y'])
             for i in range(len(self.x_data)):
                 writer.writerow([self.x_data[i], self.x_pos[i], self.y_pos[i]])
-
+        print(f"Gegevens geëxporteerd naar {csv_file}")
 
 # Hoofd GUI klasse
 class VideoAnalyzer(QWidget):
@@ -195,7 +213,6 @@ class VideoAnalyzer(QWidget):
         super().__init__()
         self.setWindowTitle("Pingpongbal Videoanalyse")  # Venstertitel
         self.setGeometry(100, 100, 1000, 900)             # Venstergrootte
-
         self.video_thread = VideoThread()                  # Maak video thread aan
         # Connecteer signals van thread met GUI methoden
         self.video_thread.frame_signal.connect(self.update_image)
@@ -207,7 +224,18 @@ class VideoAnalyzer(QWidget):
         """Maak en organiseer GUI elementen."""
         main_layout = QVBoxLayout()
         top_layout = QHBoxLayout()
-
+        """Layout voor bovenste sectie met tabel bron: https://www.pythonguis.com/tutorials/qtableview-modelviews-numpy-pandas/."""
+        self.table = QtWidgets.QTableView()
+        data = [["Frame", "X-positie", "Y-positie"],
+                ["-", "-", "-"],
+                ["-", "-", "-"],
+                ["-", "-", "-"],
+                ["-", "-", "-"]]
+                
+        self.table_model = TableModel(data)
+        self.table.setModel(self.table_model)
+        self.table.setFixedHeight(200)
+        top_layout.addWidget(self.table)
         # Label voor het tonen van video frames
         self.image_label = QLabel()
         self.image_label.setFixedSize(640, 480)
@@ -305,7 +333,7 @@ class VideoAnalyzer(QWidget):
             self.canvas.y_pos.clear()
 
             QMessageBox.information(self, "Video geselecteerd", f"Geselecteerd: {file_path}")
-
+      
     def start_analysis(self):
         """Start de video analyse thread."""
         if not self.video_thread.isRunning():
