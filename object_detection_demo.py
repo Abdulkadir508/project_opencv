@@ -163,6 +163,13 @@ class PlotCanvas(FigureCanvas):
         self.x_pos = []   # X posities
         self.y_pos = []   # Y posities
         self.skip_rate = 1  # Frames overslaan bij plotten (voor performance)
+        self.df = pd.DataFrame({
+            'Frame': self.x_data,
+            'x_pos': self.x_pos,
+            'y_pos': self.y_pos
+        })
+        self.df.to_csv('axis_data.csv', index=False)  # Opslaan als CSV bestand
+        print('Data is opgeslagen in axis_data.csv')
 
     def update_plot(self, x, y):
         """Voeg nieuwe positie toe en update grafiek."""
@@ -205,7 +212,7 @@ class PlotCanvas(FigureCanvas):
             writer.writerow(['Frame', 'X', 'Y'])
             for i in range(len(self.x_data)):
                 writer.writerow([self.x_data[i], self.x_pos[i], self.y_pos[i]])
-        print(f"Gegevens geëxporteerd naar {csv_file}")
+        print(f"Gegevens geëxporteerd naar {filename}")
 
 # Hoofd GUI klasse
 class VideoAnalyzer(QWidget):
